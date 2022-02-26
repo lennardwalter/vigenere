@@ -1,7 +1,8 @@
 module Analysis where
 
 import Data.Char (chr)
-import Data.List (genericLength, transpose)
+import Data.List (genericLength, minimumBy, transpose)
+import Data.Ord (comparing)
 import Helpers (elemCount, minIndex, splitEvery)
 import Vigenère (decipher, sanitize)
 
@@ -18,16 +19,13 @@ chiSquared xs ys = sum $ [((x - y) ^ 2) / y | (x, y) <- zip xs ys]
 monogramFrequencies :: String -> [Float]
 monogramFrequencies s = [elemCount c s / genericLength s | c <- ['A' .. 'Z']]
 
--- | Calculate the performances in terms of matching the frequency distribution
---   of German monograms for deciphered text using each alphabetic character as a key
-monogramPerformances :: String -> [Float]
-monogramPerformances s = map performance ['A' .. 'Z']
-  where
-    performance c = chiSquared (monogramFrequencies (decipher [c] s)) germanMonogramFrequencies
+-- | Calculate the performance in terms of matching the frequency distribution of German monograms
+monogramPerformance :: String -> Float
+monogramPerformance s = chiSquared (monogramFrequencies s) germanMonogramFrequencies
 
--- | Find the most likely key used to encipher the given ciphertext
-findKey :: String -> Int -> String
-findKey ciphertext keylength =
+-- | Find the most likely key used to encipher the given ciphertext, providing the key length
+findKeyWithLength :: String -> Int -> String
+findKeyWithLength ciphertext keylength =
   key
   where
     ciphertext' :: String
@@ -40,4 +38,20 @@ findKey ciphertext keylength =
     key = map bestColumnShift columns
 
     bestColumnShift :: [Char] -> Char
-    bestColumnShift column = chr $ (minIndex $ monogramPerformances column) + 65
+    bestColumnShift column = chr $ (minIndex $ monogramPerformances) + 65
+      where
+        monogramPerformances = [monogramPerformance $ decipher [key] column | key <- ['A' .. 'Z']]
+
+-- | Find the most likely key used to encipher the given ciphertext, providing a range of key lengths
+findKeyInRange :: String -> (Int, Int) -> String
+findKeyInRange ciphertext (from, to) =
+  snd $ minimumBy (comparing fst) performances
+  where
+    performances :: [(Float, String)]
+    performances =
+      map
+        ( \n ->
+            let k = findKeyWithLength ciphertext n
+             in (monogramPerformance $ decipher k ciphertext, k)
+        )
+        [from .. to]
