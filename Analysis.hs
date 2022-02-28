@@ -1,9 +1,11 @@
 module Analysis where
 
+import Control.Monad (guard)
 import Data.Char (chr)
 import Data.List (genericLength, minimumBy, transpose)
+import Data.Maybe (fromJust)
 import Data.Ord (comparing)
-import Helpers (elemCount, minIndex, splitEvery)
+import Helpers (elemCount, minIndex, splitEvery, stringSearch)
 import Vigenère (decipher, sanitize)
 
 -- | German monogram frequencies in alphabetical order
@@ -26,7 +28,7 @@ monogramPerformance s = chiSquared (monogramFrequencies s) germanMonogramFrequen
 -- | Find the most likely key used to encipher the given ciphertext, providing the key length
 findKeyWithLength :: String -> Int -> String
 findKeyWithLength ciphertext keylength =
-  key
+  map bestColumnKey columns
   where
     ciphertext' :: String
     ciphertext' = sanitize ciphertext
@@ -34,11 +36,8 @@ findKeyWithLength ciphertext keylength =
     columns :: [[Char]]
     columns = transpose $ splitEvery keylength ciphertext'
 
-    key :: String
-    key = map bestColumnShift columns
-
-    bestColumnShift :: [Char] -> Char
-    bestColumnShift column = chr $ (minIndex $ monogramPerformances) + 65
+    bestColumnKey :: [Char] -> Char
+    bestColumnKey column = chr $ (minIndex $ monogramPerformances) + 65
       where
         monogramPerformances = [monogramPerformance $ decipher [key] column | key <- ['A' .. 'Z']]
 
@@ -55,3 +54,31 @@ findKeyInRange ciphertext (from, to) =
              in (monogramPerformance $ decipher k ciphertext, k)
         )
         [from .. to]
+
+-- | Perform key elimination on the given ciphertext to reveal the key
+findKeyWithWordAndLength :: String -> String -> Int -> Maybe String
+findKeyWithWordAndLength ciphertext word keylength = do
+  posInCipher <- stringSearch (shiftedDiff word') (shiftedDiff ciphertext')
+  guard (length key == keylength)
+  pure key
+  where
+    ciphertext' :: String
+    ciphertext' = sanitize ciphertext
+
+    word' :: String
+    word' = sanitize word
+
+    key :: String
+    key = take keylength $ decipher wordPart cipherPart
+
+    posInCipher :: Maybe Int
+    posInCipher = stringSearch (shiftedDiff word') (shiftedDiff ciphertext')
+
+    cipherPart :: String
+    cipherPart = take (length word' - keylength) (drop (fromJust posInCipher) ciphertext')
+
+    wordPart :: String
+    wordPart = take (length cipherPart) word'
+
+    shiftedDiff :: String -> String
+    shiftedDiff s = decipher (drop keylength s) (take (length s - keylength) s)

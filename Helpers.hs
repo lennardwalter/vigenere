@@ -1,6 +1,12 @@
 module Helpers where
 
-import Data.List (genericLength, minimumBy)
+import Data.List
+  ( findIndex,
+    genericLength,
+    isPrefixOf,
+    minimumBy,
+    tails,
+  )
 import Data.Ord (comparing)
 
 -- | Split a given list into chunks length `0 < length <= n` (the last chunk may be shorter).
@@ -17,3 +23,7 @@ elemCount x = genericLength . filter (== x)
 -- | Find the index of the smallest element of a list.
 minIndex :: (Ord a, Num b, Enum b) => [a] -> b
 minIndex xs = snd $ minimumBy (comparing fst) (zip xs [0 ..])
+
+-- | Find the start index of substring in a string or Nothing
+stringSearch :: String -> String -> Maybe Int
+stringSearch needle haystack = findIndex (isPrefixOf needle) (tails haystack)
